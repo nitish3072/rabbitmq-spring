@@ -1,13 +1,11 @@
 package com.nitish.rabbitmq.config;
 
-import org.springframework.amqp.core.Binding;
-import org.springframework.amqp.core.BindingBuilder;
-import org.springframework.amqp.core.DirectExchange;
-import org.springframework.amqp.core.Queue;
+import org.springframework.amqp.core.*;
 import org.springframework.amqp.rabbit.connection.CachingConnectionFactory;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
+import org.springframework.amqp.support.converter.SimpleMessageConverter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -15,42 +13,37 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class RabbitMqConfig {
 
-    @Value("rabbitmq.queue")
-    String queueName;
+    String queueName = "queue-1";
 
-    @Value("rabbitmq.exchange")
-    String exchangeName;
+    String exchangeName = "exchange-1";
 
-    @Value("rabbitmq.routing-key")
-    String directRoutingKey;
+    String routingKey = "key-1";
+
+    @Value("${spring.rabbitmq.host}")
+    String host;
+
+    @Value("${spring.rabbitmq.port}")
+    Integer port;
+
+    @Value("${spring.rabbitmq.username}")
+    String userName;
+
+    @Value("${spring.rabbitmq.password}")
+    String password;
 
     @Bean
     public ConnectionFactory connectionFactory() {
-        CachingConnectionFactory connectionFactory = new CachingConnectionFactory("localhost");
-        connectionFactory.setUsername("guest");
-        connectionFactory.setPassword("guest");
+        CachingConnectionFactory connectionFactory = new CachingConnectionFactory(host, port);
+        connectionFactory.setCacheMode(CachingConnectionFactory.CacheMode.CONNECTION);
+        connectionFactory.setUsername(userName);
+        connectionFactory.setPassword(password);
         return connectionFactory;
-    }
-
-    @Bean
-    public Queue queue() {
-        return new Queue(queueName, true);
-    }
-
-    @Bean
-    public DirectExchange exchange() {
-        return new DirectExchange(exchangeName);
-    }
-
-    @Bean
-    public Binding binding(Queue queue, DirectExchange exchange) {
-        return BindingBuilder.bind(queue).to(exchange).with(directRoutingKey);
     }
 
     @Bean
     public RabbitTemplate rabbitTemplate(ConnectionFactory connectionFactory) {
         RabbitTemplate template = new RabbitTemplate(connectionFactory);
-        template.setMessageConverter(new Jackson2JsonMessageConverter());
+        template.setMessageConverter(new SimpleMessageConverter());
         return template;
     }
 

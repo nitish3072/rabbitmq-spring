@@ -1,123 +1,116 @@
-//package com.nitish.rabbitmq;
+package com.nitish.rabbitmq;
+
+import com.nitish.rabbitmq.config.RabbitMqConfig;
+import com.nitish.rabbitmq.consumer.AbstractQueueConsumer;
+import com.nitish.rabbitmq.producer.QueueSender;
+import com.rabbitmq.client.AMQP;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.amqp.core.Binding;
+import org.springframework.amqp.core.ExchangeTypes;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.test.util.TestPropertyValues;
+import org.springframework.context.ApplicationContextInitializer;
+import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
+import org.testcontainers.containers.RabbitMQContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.shaded.com.google.common.collect.ImmutableSet;
+
+import javax.annotation.PostConstruct;
+import javax.annotation.PreDestroy;
+import java.io.IOException;
+import java.util.Collections;
+import java.util.Locale;
+import java.util.concurrent.TimeUnit;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { Consumer.class, RabbitMqConfig.class, QueueSender.class })
+@TestPropertySource(locations = {"classpath:application.properties"})
+@Testcontainers
+public class IntegrationTest {
+
+	static String exchangeName = "exchange-1";
+
+	static String queueName = "queue-1";
+
+	static String routingKey = "key-1";
+
+	@Container
+	public static RabbitMQContainer rabbitMQContainer = new RabbitMQContainer(RabbitMQTestImages.RABBITMQ_IMAGE)
+			.withVhost("/", true)
+			.withUser("guest", "guest", ImmutableSet.of("administrator"))
+			.withPluginsEnabled("rabbitmq_management")
+			.withPermission("/", "guest", ".*", ".*", ".*")
+			.withQueue(queueName, false, true, Collections.emptyMap())
+			.withExchange(exchangeName, ExchangeTypes.DIRECT.toLowerCase(Locale.ROOT), false, false, true, Collections.emptyMap())
+			.withBinding(exchangeName, queueName, Collections.emptyMap(), routingKey, Binding.DestinationType.QUEUE.name());
+
+	@PostConstruct
+	public void postConstruct() {
+		rabbitMQContainer.start();
+	}
+
+	@PreDestroy
+	public void preDestroy() {
+		rabbitMQContainer.stop();
+	}
+
+	@DynamicPropertySource
+	static void rabbitMqProperties(DynamicPropertyRegistry registry) {
+		registry.add("spring.rabbitmq.username", rabbitMQContainer::getAdminUsername);
+		registry.add("spring.rabbitmq.password", rabbitMQContainer::getAdminPassword);
+		registry.add("spring.rabbitmq.host", rabbitMQContainer::getHost);
+		registry.add("spring.rabbitmq.port", rabbitMQContainer::getAmqpPort);
+	}
+
 //
-//import com.fasterxml.jackson.core.JsonProcessingException;
-//import com.fasterxml.jackson.databind.ObjectMapper;
-//import okhttp3.mockwebserver.MockResponse;
-//import okhttp3.mockwebserver.MockWebServer;
-//import okhttp3.mockwebserver.RecordedRequest;
-//import org.junit.jupiter.api.AfterEach;
-//import org.junit.jupiter.api.BeforeEach;
-//import org.junit.jupiter.api.Test;
-//import org.junit.jupiter.api.extension.ExtendWith;
-//import org.springframework.http.HttpHeaders;
-//import org.springframework.http.HttpMethod;
-//import org.springframework.http.MediaType;
-//import org.springframework.test.context.ContextConfiguration;
-//import org.springframework.test.context.TestPropertySource;
-//import org.springframework.test.context.junit.jupiter.SpringExtension;
-//import reactor.core.publisher.Mono;
-//
-//import java.io.IOException;
-//import java.net.URI;
-//import java.net.URISyntaxException;
-//import java.util.HashMap;
-//import java.util.Map;
-//
-//import static org.junit.jupiter.api.Assertions.assertEquals;
-//
-//@ExtendWith(SpringExtension.class)
-//@ContextConfiguration
-//@TestPropertySource(locations = {"classpath:application.properties"})
-//public class IntegrationTest {
-//
-//	ObjectMapper objectMapper = new ObjectMapper();
-//
-//	public MockWebServer mockBackEnd;
-//
-//	@BeforeEach
-//	void setUp() throws IOException {
-//		mockBackEnd = new MockWebServer();
-//		mockBackEnd.start();
+//	public static class Initializer implements
+//			ApplicationContextInitializer<ConfigurableApplicationContext> {
+//		@Override
+//		public void initialize(ConfigurableApplicationContext configurableApplicationContext) {
+//			TestPropertyValues values = TestPropertyValues.of(
+//					"spring.rabbitmq.username=" + "guest",
+//					"spring.rabbitmq.password=" + "guest",
+//					"spring.rabbitmq.host=" + rabbitMQContainer.getHost(),
+//					"spring.rabbitmq.port=" + rabbitMQContainer.getMappedPort(5672)
+//			);
+//			values.applyTo(configurableApplicationContext);
+//		}
 //	}
-//
-//	@AfterEach
-//	void tearDown() throws IOException {
-//		mockBackEnd.shutdown();
-//	}
-//
-//	@Test
-//	public void checkWebClientGetConnection() throws JsonProcessingException, URISyntaxException {
-//		Map<String, Object> resp = new HashMap<>();
-//		resp.put("a", 100);
-//		resp.put("b", true);
-//		resp.put("c", "Hello");
-//
-//		mockBackEnd.enqueue(new MockResponse().setResponseCode(200)
-//				.setBody(objectMapper.writeValueAsString(resp))
-//				.setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
-//		);
-//
-//		URI uri = new URI("http", null, "localhost", mockBackEnd.getPort(),
-//				"", null, null);
-//
-//		HttpHeaders httpHeaders = new HttpHeaders();
-//
-//		Mono<DefaultWebResultResponse<Map>> mono =  MonoCallback.createMonoOutput(HttpMethod.GET, uri, httpHeaders, new HashMap<>());
-//		DefaultWebResultResponse<Map> defaultWebResultResponse = mono.block();
-//		System.out.println(objectMapper.writeValueAsString(defaultWebResultResponse.getData()));
-//		assertEquals(defaultWebResultResponse.getData(), resp);
-//	}
-//
-//	@Test
-//	public void checkWebClientPostConnection() throws JsonProcessingException, URISyntaxException, InterruptedException {
-//
-//
-//		mockBackEnd.enqueue(new MockResponse().setResponseCode(200)
-//				.setBody((recordedRequest, bufferedSource, bufferedSink) -> bufferedSink.write(bufferedSource.readByteArray()))
-//				.setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
-//		);
-//
-//
-//		URI uri = new URI("http", null, "localhost", mockBackEnd.getPort(),
-//				"", null, null);
-//
-//		HttpHeaders httpHeaders = new HttpHeaders();
-//
-//		Map<String, Object> resp = new HashMap<>();
-//		resp.put("a", 100);
-//		resp.put("b", true);
-//		resp.put("c", "Hello");
-//
-//		Mono<DefaultWebResultResponse<Map>> mono =  MonoCallback.createMonoOutput(HttpMethod.POST, uri, httpHeaders, resp);
-//		DefaultWebResultResponse<Map> defaultWebResultResponse = mono.block();
-//		RecordedRequest request = mockBackEnd.takeRequest();
-//		assertEquals(objectMapper.writeValueAsString(resp), request.getBody().readUtf8());
-//	}
-//
-//	@Test
-//	public void checkWebClientPutConnection() throws JsonProcessingException, URISyntaxException, InterruptedException {
-//
-//
-//		mockBackEnd.enqueue(new MockResponse().setResponseCode(200)
-//				.setBody((recordedRequest, bufferedSource, bufferedSink) -> bufferedSink.write(bufferedSource.readByteArray()))
-//				.setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
-//		);
-//
-//
-//		URI uri = new URI("http", null, "localhost", mockBackEnd.getPort(),
-//				"", null, null);
-//
-//		HttpHeaders httpHeaders = new HttpHeaders();
-//
-//		Map<String, Object> resp = new HashMap<>();
-//		resp.put("a", 100);
-//		resp.put("b", true);
-//		resp.put("c", "Hello");
-//
-//		Mono<DefaultWebResultResponse<Map>> mono =  MonoCallback.createMonoOutput(HttpMethod.PUT, uri, httpHeaders, resp);
-//		DefaultWebResultResponse<Map> defaultWebResultResponse = mono.block();
-//		RecordedRequest request = mockBackEnd.takeRequest();
-//		assertEquals(objectMapper.writeValueAsString(resp), request.getBody().readUtf8());
-//	}
-//
-//}
+
+	@Autowired
+	Consumer consumer;
+
+	@Autowired
+	QueueSender queueSender;
+
+	@Test
+	public void checkExchangeAndQueueCreated() throws InterruptedException, IOException {
+		assertThat(rabbitMQContainer.execInContainer("rabbitmqctl", "list_exchanges").getStdout())
+				.containsPattern(exchangeName + "\\s+direct");
+		assertThat(rabbitMQContainer.execInContainer("rabbitmqctl", "list_queues", "name", "arguments").getStdout())
+				.containsPattern(queueName);
+	}
+
+	@Test
+	public void checkSenderAndConsumer() throws InterruptedException, IOException {
+		String message = "Check Message";
+		queueSender.send(message);
+		boolean messageConsumed = consumer.getLatch().await(10, TimeUnit.SECONDS);
+		assertTrue(messageConsumed);
+		assertEquals(consumer.getPayload(), message);
+	}
+
+}
